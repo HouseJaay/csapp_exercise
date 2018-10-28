@@ -144,7 +144,7 @@ NOTES:
  */
 int absVal(int x) {
     int mask = x >> 31;
-    return (x^mask) - mask;
+    return (x^mask) + (~mask+1);
 }
 /* 
  * addOK - Determine if can compute x+y without overflow
@@ -256,14 +256,14 @@ int bitAnd(int x, int y) {
  */
 int bitCount(int x) {
   int mask1 = 0x55 | (0x55 << 8);
-  mask1 = mask1 | (mask1 << 16);
   int mask2 = 0x33 | (0x33 << 8);
-  mask2 = mask2 | (mask2 << 16);
   int mask3 = 0x0f | (0x0f << 8);
-  mask3 = mask3 | (mask3 << 16);
   int mask4 = 0xff | (0xff << 16);
   int mask5 = 0xff | (0xff << 8);
   int r;
+  mask1 = mask1 | (mask1 << 16);
+  mask2 = mask2 | (mask2 << 16);
+  mask3 = mask3 | (mask3 << 16);
   r = (x & mask1) + ((x >> 1) & mask1);
   r = (r & mask2) + ((r >> 2) & mask2);
   r = (r & mask3) + ((r >> 4) & mask3);
@@ -344,7 +344,20 @@ int bitParity(int x) {
  *   Rating: 4
  */
 int bitReverse(int x) {
-    return 2;
+  int mask1 = 0x55 | (0x55 << 8);
+  int mask2 = 0x33 | (0x33 << 8);
+  int mask3 = 0x0f | (0x0f << 8);
+  int mask4 = 0xff | (0xff << 16);
+  int mask5 = 0xff | (0xff << 8);
+  mask1 = mask1 | (mask1 << 16);
+  mask2 = mask2 | (mask2 << 16);
+  mask3 = mask3 | (mask3 << 16);
+  x = ((mask5 & x)<<16) | (mask5 & (x>>16));
+  x = ((mask4 & x)<<8) | (mask4 & (x>>8));
+  x = ((mask3 & x)<<4) | (mask3 & (x>>4));
+  x = ((mask2 & x)<<2) | (mask2 & (x>>2));
+  x = ((mask1 & x)<<1) | (mask1 & (x>>1));
+  return x;
 }
 /* 
  * bitXor - x^y using only ~ and & 
@@ -368,7 +381,15 @@ int bitXor(int x, int y) {
  *  Rating: 2
  */
 int byteSwap(int x, int n, int m) {
-    return 2;
+  int getn = 0xff << (n << 3);
+  int getm = 0xff << (m << 3);
+  int cleann = ~getn;
+  int cleanm = ~getm;
+  int nbyte = ((getn & x) >> (n<<3))&0xff;
+  int mbyte = ((getm & x) >> (m<<3))&0xff;
+  x = x & cleann & cleanm;
+  x = x | (nbyte << (m<<3)) | (mbyte << (n<<3));
+  return x;
 }
 /* 
  * conditional - same as x ? y : z 
@@ -378,7 +399,9 @@ int byteSwap(int x, int n, int m) {
  *   Rating: 3
  */
 int conditional(int x, int y, int z) {
-  return 2;
+  int ymask = ~(!!x) + 1;
+  int zmask = ~ymask;
+  return (ymask & y) | (zmask & z);
 }
 /* 
  * copyLSB - set all bits of result to least significant bit of x
@@ -388,7 +411,7 @@ int conditional(int x, int y, int z) {
  *   Rating: 2
  */
 int copyLSB(int x) {
-  return 2;
+  return ~!!(x&1)+1;
 }
 /*
  * distinctNegation - returns 1 if x != -x.
@@ -398,7 +421,7 @@ int copyLSB(int x) {
  *   Rating: 2
  */
 int distinctNegation(int x) {
-  return 2;
+  return !!(x ^ (~x+1));
 }
 /* 
  * dividePower2 - Compute x/(2^n), for 0 <= n <= 30
@@ -409,7 +432,9 @@ int distinctNegation(int x) {
  *   Rating: 2
  */
 int dividePower2(int x, int n) {
-    return 2;
+    int isneg = (x >> 31)&1;
+    int isround = isneg & (!!(x << (31 + ~n + 1) << 1));
+    return (x >> n) + isround;
 }
 /* 
  * evenBits - return word with all even-numbered bits set to 1
@@ -418,7 +443,9 @@ int dividePower2(int x, int n) {
  *   Rating: 1
  */
 int evenBits(void) {
-  return 2;
+  int mask = 0x55 | (0x55 << 8);
+  mask = mask | (mask << 16);
+  return mask;
 }
 /*
  * ezThreeFourths - multiplies by 3/4 rounding toward 0,
@@ -432,7 +459,8 @@ int evenBits(void) {
  *   Rating: 3
  */
 int ezThreeFourths(int x) {
-  return 2;
+  x = x + x + x;
+  return (x >> 2) + ((!!(x & 0x03)) & (x>>31));
 }
 /* 
  * fitsBits - return 1 if x can be represented as an 
@@ -444,7 +472,10 @@ int ezThreeFourths(int x) {
  *   Rating: 2
  */
 int fitsBits(int x, int n) {
-  return 2;
+  int nminus1 = n + (~1+1);
+  int isall1 = (!~(x >> nminus1))&1;
+  int isall0 = (!(x >> nminus1))&1;
+  return isall1 | isall0;
 }
 /* 
  * fitsShort - return 1 if x can be represented as a 
@@ -455,7 +486,9 @@ int fitsBits(int x, int n) {
  *   Rating: 1
  */
 int fitsShort(int x) {
-  return 2;
+  int isall1 = (!~(x>>15))&1;
+  int isall0 = (!(x>>15))&1;
+  return isall1 | isall0;
 }
 /* 
  * floatAbsVal - Return bit-level equivalent of absolute value of f for
@@ -469,7 +502,11 @@ int fitsShort(int x) {
  *   Rating: 2
  */
 unsigned floatAbsVal(unsigned uf) {
-  return 2;
+  int f = uf;
+  int isall1 = !~(f << 1 >> 24);
+  int isnan = isall1 && (uf<<9);
+  if (isnan) return uf;
+  else return uf & ~(1<<31);
 }
 /* 
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
@@ -510,7 +547,14 @@ unsigned floatInt2Float(int x) {
  *   Rating: 2
  */
 int floatIsEqual(unsigned uf, unsigned ug) {
-    return 2;
+    int f = uf;
+    int g = ug;
+    int isnanf = (!~(f<<1>>24)) && (uf<<9);
+    int isnang = (!~(g<<1>>24)) && (ug<<9);
+    if (isnanf || isnang) {return 0;}
+    else if ((!(uf<<1)) && !(ug<<1)) {return 1;}
+    else if (!(uf ^ ug)) {return 1;}
+    else {return 0;}
 }
 /* 
  * floatIsLess - Compute f < g for floating point arguments f and g.
@@ -619,7 +663,7 @@ unsigned floatUnsigned2Float(unsigned u) {
  *   Rating: 2
  */
 int getByte(int x, int n) {
-  return 2;
+  return (x >> (n<<3)) & 0xff;
 }
 /* 
  * greatestBitPos - return a mask that marks the position of the
